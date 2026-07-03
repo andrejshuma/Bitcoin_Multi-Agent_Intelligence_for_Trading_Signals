@@ -1,0 +1,66 @@
+{
+  "n_total_bars": 9133,
+  "n_sampled": 231,
+  "n_evaluated": 230,
+  "sentiment_source": "fear_greed",
+  "test_period": {
+    "start": "2025-02-05 10:00:00",
+    "end": "2026-02-20 22:00:00"
+  },
+  "full_period": {
+    "ta_only": {
+      "n_trades": 8653,
+      "win_rate": 0.6565,
+      "total_pnl_pct": 1799.24,
+      "avg_trade_pct": 0.2079,
+      "pertrade_sharpe": 0.207,
+      "buy": 4521,
+      "sell": 4132,
+      "hold": 480
+    },
+    "agentic": {
+      "n_trades": 8641,
+      "win_rate": 0.6562,
+      "total_pnl_pct": 1796.41,
+      "avg_trade_pct": 0.2079,
+      "pertrade_sharpe": 0.207,
+      "buy": 4576,
+      "sell": 4065,
+      "hold": 492
+    }
+  },
+  "sampled": {
+    "ta_only": {
+      "n_trades": 219,
+      "win_rate": 0.6712,
+      "total_pnl_pct": 50.43,
+      "avg_trade_pct": 0.2303,
+      "pertrade_sharpe": 0.246,
+      "buy": 106,
+      "sell": 113,
+      "hold": 11
+    },
+    "agentic": {
+      "n_trades": 220,
+      "win_rate": 0.6682,
+      "total_pnl_pct": 49.82,
+      "avg_trade_pct": 0.2264,
+      "pertrade_sharpe": 0.242,
+      "buy": 108,
+      "sell": 112,
+      "hold": 10
+    },
+    "debate": {
+      "n_trades": 217,
+      "win_rate": 0.6083,
+      "total_pnl_pct": 15.26,
+      "avg_trade_pct": 0.0703,
+      "pertrade_sharpe": 0.073,
+      "buy": 104,
+      "sell": 113,
+      "hold": 13
+    },
+    "agreement_debate_vs_ta": 0.8217,
+    "agreement_debate_vs_agentic": 0.8217
+  }
+}

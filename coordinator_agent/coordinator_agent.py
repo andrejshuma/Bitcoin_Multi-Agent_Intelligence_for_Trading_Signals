@@ -111,6 +111,59 @@ class CoordinatorAgent:
             ],
         )
 
+    def _run_debate(self, technical: Dict, risk: Dict) -> FinalCoordinatorSignal:
+        """mode='debate': 3 LLM agents (technical/sentiment/risk) debate over the
+        real model outputs for 2 rounds, then the coordinator judge gives the final
+        signal+reasoning. Sentiment is grounded in live NewsAPI headlines -> FinBERT."""
+        if str(self.repo_root) not in sys.path:
+            sys.path.insert(0, str(self.repo_root))
+        from agentic_prototype.live_briefs import (
+            build_sentiment_brief,
+            risk_brief_from_signal,
+            technical_brief_from_signal,
+        )
+        from agentic_prototype.llm_chat import get_backend
+        from agentic_prototype.llm_debate import AGENTS, run_llm_debate
+
+        scenario = {
+            "id": f"live-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+            "technical": technical_brief_from_signal(technical),
+            "sentiment": build_sentiment_brief(),  # live NewsAPI headlines -> FinBERT
+            "risk": risk_brief_from_signal(risk),
+            "expected_signal": None,
+        }
+        result = run_llm_debate(scenario, backend=get_backend(verbose=False), rounds=2)
+        final = result["final"]
+        last = result["transcript"][-1]["positions"]
+
+        signal = final["signal"]
+        confidence = float(final["confidence"])
+        score = max(-1.0, min(1.0, self._signal_to_unit(signal) * confidence))
+        risk_level = str(risk.get("signal", "medium_risk")).lower()
+
+        key_factors = [
+            f"{a.capitalize()}: {last[a]['signal'].upper()} ({last[a]['confidence']:.2f})" for a in AGENTS
+        ]
+        key_factors.append(
+            f"Debate: {final['mode']}" + (" + risk veto" if final.get("risk_veto") else "")
+        )
+        key_factors.append(f"Sentiment headlines: {scenario['sentiment'].get('headline_source', 'n/a')}")
+
+        return FinalCoordinatorSignal(
+            signal=signal,
+            confidence=confidence,
+            score=score,
+            risk_level=risk_level,
+            key_factors=key_factors,
+            reasoning=final["reasoning"],
+            data_sources=[
+                "LLM debate (Groq llama-3.1-8b-instant)",
+                "CNN-LSTM technical",
+                "FinBERT + NewsAPI sentiment",
+                "LightGBM risk",
+            ],
+        )
+
     def _combine_signals(self, technical: Dict, sentiment: Dict, risk: Dict) -> Tuple[str, float, float, str]:
         tech_score = self._signal_to_score(technical["signal"]) * float(technical.get("confidence", 0.0))
         sentiment_score = self._signal_to_score(sentiment["signal"]) * float(sentiment.get("confidence", 0.0))
@@ -139,14 +192,21 @@ class CoordinatorAgent:
         return final_signal, confidence, adjusted_score, risk_signal
 
     def run(self, mode: str = "agentic") -> FinalCoordinatorSignal:
+        mode_l = mode.lower()
         technical = self.technical_agent.run().model_dump()
-        sentiment = self._run_json_script(self.sentiment_dir, "run_agent_json.py")
         risk = self._run_json_script(self.risk_dir, "run_agent_json.py")
 
-        if mode.lower() == "agentic":
+        # Debate mode sources its own sentiment from live headlines (NewsAPI ->
+        # FinBERT) inside the debate, so the sentiment subprocess is skipped here.
+        if mode_l == "debate":
+            return self._run_debate(technical, risk)
+
+        sentiment = self._run_json_script(self.sentiment_dir, "run_agent_json.py")
+
+        if mode_l == "agentic":
             return self._run_agentic(technical, sentiment, risk)
-        if mode.lower() != "legacy":
-            raise ValueError("Unsupported coordinator mode. Use 'agentic' or 'legacy'.")
+        if mode_l != "legacy":
+            raise ValueError("Unsupported coordinator mode. Use 'agentic', 'legacy', or 'debate'.")
 
         signal, confidence, score, risk_level = self._combine_signals(technical, sentiment, risk)
 
