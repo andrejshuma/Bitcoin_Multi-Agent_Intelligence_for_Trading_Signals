@@ -20,15 +20,24 @@ from typing import Dict, List, Optional
 
 from .llm_agents import CoordinatorJudge, FinalDecision, LLMAgent, Position
 from .llm_chat import get_backend
+from .personas import BASELINE, resolve
 
 AGENTS = ("technical", "sentiment", "risk")
 DEFAULT_ROUNDS = 2  # fixed, no early stop (per design decision)
 
 
-def run_llm_debate(scenario: Dict, backend=None, rounds: int = DEFAULT_ROUNDS, narrate: bool = True) -> Dict:
-    """Run the full debate for one scenario and return a structured transcript."""
+def run_llm_debate(scenario: Dict, backend=None, rounds: int = DEFAULT_ROUNDS, narrate: bool = True,
+                   persona=BASELINE) -> Dict:
+    """Run the full debate for one scenario and return a structured transcript.
+
+    ``persona`` (a :class:`~agentic_prototype.personas.Persona` or its name) is
+    applied uniformly to all three debaters -- a "house style" for the whole
+    panel -- following the persona-prompting comparison. The coordinator judge
+    stays persona-neutral: its resolution logic is deterministic.
+    """
     backend = backend or get_backend(verbose=False)
-    agents = {name: LLMAgent(agent=name, backend=backend) for name in AGENTS}
+    persona = resolve(persona)
+    agents = {name: LLMAgent(agent=name, backend=backend, persona=persona) for name in AGENTS}
 
     # Phase 1 -- independent initial positions (sequential; order has no effect).
     current: Dict[str, Position] = {name: agents[name].initial(scenario[name]) for name in AGENTS}
@@ -52,6 +61,7 @@ def run_llm_debate(scenario: Dict, backend=None, rounds: int = DEFAULT_ROUNDS, n
         "id": scenario.get("id"),
         "expected_signal": scenario.get("expected_signal"),
         "rounds": rounds,
+        "persona": persona.name,
         "final": asdict(decision),
         "transcript": transcript,
     }
@@ -89,6 +99,9 @@ def main() -> None:
     parser.add_argument("--scenarios", default=str(Path(__file__).resolve().parent / "llm_scenarios.jsonl"))
     parser.add_argument("--rounds", type=int, default=DEFAULT_ROUNDS)
     parser.add_argument("--json", action="store_true", help="Dump raw JSON transcripts instead of pretty print.")
+    parser.add_argument("--persona", default="baseline",
+                        help="Persona applied to all three debaters (e.g. aggressive, conservative, "
+                             "contrarian, disciplined, fearful, greedy, age_25, veteran_institutional).")
     parser.add_argument("--live", action="store_true",
                         help="Build ONE scenario from the real models (CNN-LSTM, LightGBM risk, FinBERT) "
                              "instead of the demo scenarios file.")
@@ -105,7 +118,8 @@ def main() -> None:
         scenarios = [scenario]
     else:
         scenarios = _load_scenarios(Path(args.scenarios))
-    results = [run_llm_debate(s, backend=backend, rounds=args.rounds) for s in scenarios]
+    results = [run_llm_debate(s, backend=backend, rounds=args.rounds, persona=args.persona)
+               for s in scenarios]
 
     if args.json:
         print(json.dumps(results, indent=2))

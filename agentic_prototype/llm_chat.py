@@ -80,8 +80,9 @@ class MockChat:
     def complete(self, system: str, user: str, context: Optional[dict] = None) -> str:
         context = context or {}
         kind = context.get("kind")
+        persona = context.get("persona", "baseline")
         if kind == "agent_initial":
-            return json.dumps(self._initial(context["agent"], context["brief"]))
+            return json.dumps(self._initial(context["agent"], context["brief"], persona))
         if kind == "agent_revise":
             return json.dumps(self._revise(context["agent"], context["own"], context["others"]))
         if kind == "coordinator":
@@ -90,7 +91,7 @@ class MockChat:
 
     # -- per-domain initial heuristics ------------------------------------- #
     @staticmethod
-    def _initial(agent: str, brief: dict) -> dict:
+    def _initial(agent: str, brief: dict, persona: str = "baseline") -> dict:
         if agent == "technical":
             tp = float(brief.get("trade_probability", 0.5))
             lp = float(brief.get("long_probability", 0.5))
@@ -125,6 +126,17 @@ class MockChat:
             )
         else:
             sig, conf, reasoning = "hold", 0.4, "Unknown agent."
+
+        if persona and persona != "baseline":
+            from .personas import BY_NAME, mock_adjust
+
+            new_sig, conf = mock_adjust(persona, sig, conf, brief)
+            if new_sig != sig:
+                reasoning += (
+                    f" As {BY_NAME[persona].description.replace('is ', 'a person who is ', 1)}, "
+                    f"I lean {new_sig.upper()} rather than {sig.upper()} here."
+                )
+                sig = new_sig
         return {"signal": sig, "confidence": conf, "reasoning": reasoning}
 
     # -- revision: unsure agents move toward an agreeing majority ----------- #

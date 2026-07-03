@@ -14,9 +14,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from .llm_chat import extract_json
+from .personas import BASELINE, Persona, persona_injection, resolve
 
 SIGNALS = ("buy", "sell", "hold")
 
@@ -51,24 +52,30 @@ _OUTPUT_RULE = (
     '{"signal": "buy|sell|hold", "confidence": 0.0-1.0, "reasoning": "2-4 sentences"}.'
 )
 
-PERSONAS: Dict[str, str] = {
+# The domain instruction defines each agent's analytical *lane*. The persona
+# injection (if any) and the JSON output rule are appended around it at prompt
+# assembly time -- see ``LLMAgent._system`` -- so a persona is layered on the
+# domain rather than replacing it.
+DOMAIN_INSTRUCTIONS: Dict[str, str] = {
     "technical": (
         "You are a senior Bitcoin technical-analysis trader. You judge ONLY from price action, "
         "momentum, trend and volatility evidence (model trade/long probabilities, RSI, MACD, ATR, "
-        "EMA structure). Ignore news and macro. Decide the trade for roughly the next 36 hours. "
-        + _OUTPUT_RULE
+        "EMA structure). Ignore news and macro. Decide the trade for roughly the next 36 hours."
     ),
     "sentiment": (
         "You are a Bitcoin market sentiment & macro analyst. You judge ONLY from news sentiment, "
         "social tone and macro indicators (FinBERT score, headlines, rates/inflation). Ignore chart "
-        "internals. Decide whether the narrative favors buying, selling or holding. " + _OUTPUT_RULE
+        "internals. Decide whether the narrative favors buying, selling or holding."
     ),
     "risk": (
         "You are a Bitcoin risk manager. You judge ONLY from volatility and drawdown risk (risk "
         "regime, ATR, forward-drawdown estimate). Your 'buy' means risk-on (safe to take exposure), "
-        "'sell' means risk-off (reduce/avoid exposure), 'hold' means neutral risk. " + _OUTPUT_RULE
+        "'sell' means risk-off (reduce/avoid exposure), 'hold' means neutral risk."
     ),
 }
+
+# Backwards-compatible: the baseline (no-persona) system prompt per agent.
+PERSONAS: Dict[str, str] = {a: f"{d} {_OUTPUT_RULE}" for a, d in DOMAIN_INSTRUCTIONS.items()}
 
 
 def _brief_text(brief: dict) -> str:
@@ -80,6 +87,14 @@ class LLMAgent:
     agent: str                 # "technical" | "sentiment" | "risk"
     backend: object            # Chat
     temperature: float = 0.4
+    persona: Persona = BASELINE  # persona variant layered on the domain lane
+
+    def __post_init__(self) -> None:
+        self.persona = resolve(self.persona)
+
+    def _system(self) -> str:
+        """Domain lane + optional persona injection + JSON output rule."""
+        return f"{DOMAIN_INSTRUCTIONS[self.agent]}{persona_injection(self.persona)} {_OUTPUT_RULE}"
 
     def initial(self, brief: dict) -> Position:
         user = (
@@ -87,8 +102,9 @@ class LLMAgent:
             f"Give your independent signal. {_OUTPUT_RULE}"
         )
         raw = self.backend.complete(
-            PERSONAS[self.agent], user,
-            context={"kind": "agent_initial", "agent": self.agent, "brief": brief},
+            self._system(), user,
+            context={"kind": "agent_initial", "agent": self.agent, "brief": brief,
+                     "persona": self.persona.name},
         )
         return self._parse(raw)
 
@@ -106,9 +122,10 @@ class LLMAgent:
             f"{_OUTPUT_RULE}"
         )
         raw = self.backend.complete(
-            PERSONAS[self.agent], user,
+            self._system(), user,
             context={"kind": "agent_revise", "agent": self.agent,
-                     "own": own.to_dict(), "others": [o.to_dict() for o in others]},
+                     "own": own.to_dict(), "others": [o.to_dict() for o in others],
+                     "persona": self.persona.name},
         )
         return self._parse(raw)
 
