@@ -2,7 +2,7 @@
 
 > Дополнителна анализа врз мулти-агентната дебата: **вметнување persona** во LLM
 > агентите и споредба на различни персони, инспирирана од трудот
-> *„Persona Prompting as a Lens on LLM Social Reasoning"* (Yang et al., EACL 2026,
+> _„Persona Prompting as a Lens on LLM Social Reasoning"_ (Yang et al., EACL 2026,
 > [aclanthology.org/2026.eacl-long.52](https://aclanthology.org/2026.eacl-long.52.pdf)).
 
 ## 1. Краток опис на трудот
@@ -30,7 +30,7 @@ chain-of-thought, Табела 4 во трудот), и **bootstrap CI** за с
 
 Дебатните агенти во проектот (`agentic_prototype/llm_agents.py`) веќе носат **по една фиксна
 доменска персона** (технички трговец / сентимент аналитичар / ризик менаџер). Мојата индивидуална
-анализа — насока различна од самата дебата — ја **претвора персоната во променлива**: истите
+анализа е насока различна од самата дебата, односно ја **претвора персоната во променлива**: истите
 брифови изведени од реалните модели (CNN-LSTM, FinBERT, LightGBM/ATR) се пуштаат низ **повеќе
 персона-варијанти**, а потоа се споредуваат со истата метричка постапка како во трудот.
 
@@ -42,35 +42,35 @@ chain-of-thought, Табела 4 во трудот), и **bootstrap CI** за с
 Персона-слојот е изграден **врз** постојната дебата, без да ја менува (кога персона не е зададена,
 однесувањето е идентично со претходно — baseline).
 
-| Датотека | Улога |
-|----------|-------|
-| `agentic_prototype/personas.py` | Регистар на персони + градител на persona-инјекцијата |
-| `agentic_prototype/llm_agents.py` | `LLMAgent` прима `persona`; системскиот промпт се составува како домен + инјекција + JSON правило |
-| `agentic_prototype/llm_debate.py` | `run_llm_debate(..., persona=...)` ја применува персоната на сите три дебатери |
-| `agentic_prototype/llm_chat.py` | `MockChat` е persona-свесен за офлајн тестирање без API |
-| `scripts/evaluation/persona_eval.py` | Евалуациска постапка (метрики, α, bootstrap) |
-| `scripts/evaluation/persona_charts.py` | Графици за споредба |
+| Датотека                               | Улога                                                                                             |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `agentic_prototype/personas.py`        | Регистар на персони + градител на persona-инјекцијата                                             |
+| `agentic_prototype/llm_agents.py`      | `LLMAgent` прима `persona`; системскиот промпт се составува како домен + инјекција + JSON правило |
+| `agentic_prototype/llm_debate.py`      | `run_llm_debate(..., persona=...)` ја применува персоната на сите три дебатери                    |
+| `agentic_prototype/llm_chat.py`        | `MockChat` е persona-свесен за офлајн тестирање без API                                           |
+| `scripts/evaluation/persona_eval.py`   | Евалуациска постапка (метрики, α, bootstrap)                                                      |
+| `scripts/evaluation/persona_charts.py` | Графици за споредба                                                                               |
 
 **Инјекција на персона** (следејќи ја рамката на трудот „step into the shoes / think in character /
 do not break character"), се додава на доменската инструкција, но агентот **останува во својата
 аналитичка насока**:
 
-> *„Additionally, step into the shoes of a real person who <опис>. Imagine you have lived your whole
-> trading career shaped by this… Reason in character, and do not break character."*
+> _„Additionally, step into the shoes of a real person who <опис>. Imagine you have lived your whole
+> trading career shaped by this… Reason in character, and do not break character."_
 
 **Две фамилии на персони:**
 
 - **Disposition (примарна)** — трговски карактер:
 
-  | Персона | Карактер |
-  |---------|----------|
-  | `baseline` | неутрална доменска персона (контрола) |
-  | `aggressive` | момент-ловечки, склон на ризик |
+  | Персона        | Карактер                              |
+  | -------------- | ------------------------------------- |
+  | `baseline`     | неутрална доменска персона (контрола) |
+  | `aggressive`   | момент-ловечки, склон на ризик        |
   | `conservative` | зачувување капитал, аверзија на ризик |
-  | `contrarian` | го фади мнозинството |
-  | `disciplined` | системски, механички следи докази |
-  | `fearful` | аверзија на загуба, брзо де-рискира |
-  | `greedy` | FOMO-воден |
+  | `contrarian`   | го фади мнозинството                  |
+  | `disciplined`  | системски, механички следи докази     |
+  | `fearful`      | аверзија на загуба, брзо де-рискира   |
+  | `greedy`       | FOMO-воден                            |
 
 - **Demographic (проба, реплика на трудот)** — директно го тестира прашањето „дали LLM се отпорни
   на стеерување / носат пристрасност" во финансиски контекст: `age_25`, `age_65`, `novice_retail`,
@@ -133,19 +133,19 @@ python -m scripts.evaluation.persona_eval --report-only --charts
 > што `persona_eval.py` го пополнува; се пополнува со командите од §4. Колоната **vsBase** е
 > просечната per-bar P&L разлика наспроти baseline (`*` = статистички значајна).
 
-| Персона | Група | BUY | SELL | HOLD | Win% | P&L% | Sharpe | Зборови | FRE | vsBase |
-|---------|-------|----:|-----:|-----:|-----:|-----:|-------:|--------:|----:|-------:|
-| baseline | baseline | — | — | — | — | — | — | — | — | base |
-| aggressive | disposition | — | — | — | — | — | — | — | — | — |
-| conservative | disposition | — | — | — | — | — | — | — | — | — |
-| contrarian | disposition | — | — | — | — | — | — | — | — | — |
-| disciplined | disposition | — | — | — | — | — | — | — | — | — |
-| fearful | disposition | — | — | — | — | — | — | — | — | — |
-| greedy | disposition | — | — | — | — | — | — | — | — | — |
-| age_25 | demographic | — | — | — | — | — | — | — | — | — |
-| age_65 | demographic | — | — | — | — | — | — | — | — | — |
-| novice_retail | demographic | — | — | — | — | — | — | — | — | — |
-| veteran_institutional | demographic | — | — | — | — | — | — | — | — | — |
+| Персона               | Група       | BUY | SELL | HOLD | Win% | P&L% | Sharpe | Зборови | FRE | vsBase |
+| --------------------- | ----------- | --: | ---: | ---: | ---: | ---: | -----: | ------: | --: | -----: |
+| baseline              | baseline    |   — |    — |    — |    — |    — |      — |       — |   — |   base |
+| aggressive            | disposition |   — |    — |    — |    — |    — |      — |       — |   — |      — |
+| conservative          | disposition |   — |    — |    — |    — |    — |      — |       — |   — |      — |
+| contrarian            | disposition |   — |    — |    — |    — |    — |      — |       — |   — |      — |
+| disciplined           | disposition |   — |    — |    — |    — |    — |      — |       — |   — |      — |
+| fearful               | disposition |   — |    — |    — |    — |    — |      — |       — |   — |      — |
+| greedy                | disposition |   — |    — |    — |    — |    — |      — |       — |   — |      — |
+| age_25                | demographic |   — |    — |    — |    — |    — |      — |       — |   — |      — |
+| age_65                | demographic |   — |    — |    — |    — |    — |      — |       — |   — |      — |
+| novice_retail         | demographic |   — |    — |    — |    — |    — |      — |       — |   — |      — |
+| veteran_institutional | demographic |   — |    — |    — |    — |    — |      — |       — |   — |      — |
 
 **Меѓу-персона Krippendorff's α:** `all = —`, `disposition = —`, `demographic = —`.
 
@@ -160,10 +160,7 @@ python -m scripts.evaluation.persona_eval --report-only --charts
 
 ## 6. Дискусија — што очекуваме и како се врзува со трудот
 
-Врз основа на наодите во `Извештај.md` и `Мултиагентна_Дебата.md` (техничкиот агент доминира и
-дебатата не додава P&L во овој режим), и на наодите на самиот труд, очекувањата се:
-
-- **Отпорност на стеерување (α).** Ако α е висока (како кај GPT-OSS/Mistral во трудот), тоа значи
+- **Отпорност (α).** Ако α е висока (како кај GPT-OSS/Mistral во трудот), тоа значи
   дека персоните едвај го менуваат крајниот сигнал — LLM има „ригиден" процес на расудување што
   површинската персона не го надминува. Ниска α (како кај Qwen3) би значела спротивно. Нашата
   постапка го квантифицира ова директно врз трговски сигнали.
